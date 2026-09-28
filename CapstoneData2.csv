@@ -1,12 +1,12 @@
-Location Properties,,,,,,,,,,,,
+ï»¿Location Properties,,,,,,,,,,,,
 Location Name = default-858237,,,,,,,,,,,,
 Location ID = 6017613865156608,,,,,,,,,,,,
-Latitude = 40.58833 °,,,,,,,,,,,,
-Longitude = -105.06587 °,,,,,,,,,,,,
+Latitude = 40.58833 Â°,,,,,,,,,,,,
+Longitude = -105.06587 Â°,,,,,,,,,,,,
 Time shown in UTC ,,,,,,,,,,,,
 ,,,,,,,,,,,,
 ,,,,,,,,,,,,
-Date Time,Turbidity (NTU),DO (mg/L),% Saturation O? (% sat),Partial Pressure O? (psi),Actual Conductivity (µS/cm),Specific Conductivity (µS/cm),Salinity (psu),Resistivity (?-cm),Density (g/cm³),Total Dissolved Solids (mg/L),Temperature (C),External Voltage (V)
+Date Time,Turbidity (NTU),DO (mg/L),% Saturation Oâ‚‚ (% sat),Partial Pressure Oâ‚‚ (psi),Actual Conductivity (ÂµS/cm),Specific Conductivity (ÂµS/cm),Salinity (psu),Resistivity (â„¦-cm),Density (g/cmÂ³),Total Dissolved Solids (mg/L),Temperature (C),External Voltage (V)
 9/21/22 4:00:00.000,0.786814153,4.588458538,50.79249954,1.342396798,46.25378418,54.64871979,0.024739733,21619.85352,0.998803496,35.52166745,16.95726013,15.78600025
 9/21/22 4:10:00.000,0.799173176,5.190795898,57.43957138,1.518153259,46.23050308,54.64027786,0.024735447,21630.74023,0.998806179,35.5161801,16.94179916,15.76799965
 9/21/22 4:20:00.000,0.732838631,5.467450619,60.48299026,1.598677667,46.19574356,54.61449432,0.024722766,21647.01563,0.998808205,35.49942002,16.92938995,15.79500008
