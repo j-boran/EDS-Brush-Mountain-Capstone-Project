@@ -1,18 +1,40 @@
-#install.packages("shiny")
 library(shiny)
 
+# Load data
+#df1 is currently broken, oops.
+df2 <- read.csv("CapstoneData2.csv", skip = 8)
+df3 <- read.csv("CapstoneData3.csv", skip = 8)
+df4 <- read.csv("CapstoneData4.csv", skip = 8)
+df5 <- read.csv("CapstoneData5.csv", skip = 8)
+
+dfcombined <- rbind(df2, df3, df4, df5)
+
 ui <- fluidPage(
-  "Hello, world!",
-  tableOutput("data")
+  
+  h1("Data Explorer"),
+  
+  selectInput(
+    inputId = "column",
+    label = "Select a column:",
+    choices = names(dfcombined)
+  ),
+  
+  tableOutput("data"),
+  
+  verbatimTextOutput("summary")
 )
 
 server <- function(input, output, session) {
   
-  df <- read.csv("CapstoneData1.csv", header = 8)
-  df2 <- read.csv("CapstoneData2.csv", skip = 8)
+
+  output$summary <- renderPrint({
+    summary(dfcombined[, input$column])
+  })
   
-  output$data <- renderTable({
-    head(df2)
+  output$plot <- renderPlot({
+    ggplot(aes(dfcombined[, input$column])) + 
+    geom_line() +
+    labs(y = "Plot title")
   })
 }
 
