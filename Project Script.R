@@ -15,12 +15,14 @@ dfcombined <- rbind(df1, df2, df3, df4, df5)
 
 clean_column <- function(column) {
 for(data in column) {
-  if(data > (mean(column)+3*(sd(column))) || data < (mean(column)- 3*(sd(column)))){
-    
+  if(data > (mean(column)+5*(sd(column))) || data < (mean(column)- 5*(sd(column)))){
+    dfOfMisfitsToys <- rbind(dfOfMisfitsToys, data)
   }
-  
+  dfcombined <- dfcombined[column != data, ]
 }
-}  
+}
+
+dfcombined <- clean_column(dfcombined)
 ui <- fluidPage(
   
   h1("Data Explorer"),
