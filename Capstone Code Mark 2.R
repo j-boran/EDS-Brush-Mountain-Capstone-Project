@@ -64,20 +64,38 @@ print(table(as.Date(dfOfMisfitsToys$Date.Time)))
 #print(nrow(dfOfMisfitsToys))
 
 ui <- fluidPage(
-  h1("Data Explorer"),
+  h1("Capstone Project"),
   
-  selectInput(
-    inputId = "column",
-    label = "Select a column:",
-    choices = numeric_choices
-  ),
   
-  tableOutput("data"),
-  verbatimTextOutput("summary"),
-  plotOutput("plot")
-)
+  
+  tabsetPanel(
+    tabPanel("Welcome Page", 
+             verbatimTextOutput("Welcome_text"),
+             mainPanel(
+               imageOutput("Brush_Mountain")
+             )),
+    tabPanel("Page 2", 
+             selectInput(
+               inputId = "column",
+               label = "Select a column:",
+               choices = numeric_choices
+             ),
+             tableOutput("data"),
+             verbatimTextOutput("summary"),
+             plotOutput("plot"),
+    ),
+    tabPanel("Page 3")
+  ))
 
 server <- function(input, output, session) {
+  
+  output$Welcome_text <- renderText({
+    "Jackson Boran EDS capstone Project Fall 2026"})
+  output$Brush_Mountain <- renderImage({
+    list(src = "brushMountainPlaceholder.jpg",
+         contentType = "image/jpeg",
+         width = 400)
+  }, deleteFile = FALSE)
   
   output$summary <- renderPrint({
     print(summary(dfcombined[[input$column]]))
