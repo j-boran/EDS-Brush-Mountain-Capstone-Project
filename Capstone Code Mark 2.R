@@ -105,7 +105,23 @@ ui <- fluidPage(
              verbatimTextOutput("summary"),
              plotOutput("plot")
     ),
-    tabPanel("Page 3")
+    tabPanel("Page 3",
+             selectInput(
+               inputId = "Dategrouping", 
+               label = "Choose how you want the group to be categorized",
+               choices = list("hourly", "daily","weekly")
+             ),
+             selectInput(
+               inputId = "XScatter",
+               label = "Select an X variable",
+               choices = numeric_choices
+             ),
+             selectInput(
+               inputId = "YScatter",
+               label = "Select a Y variable",
+               choices = numeric_choices
+             ),
+             plotOutput("PlotPage3"))
   ))
 
 server <- function(input, output, session) {
@@ -145,6 +161,15 @@ server <- function(input, output, session) {
     ggplot(long, aes(x = Date.Time, y = value, color = variable,
                      group = interaction(variable, seg))) +
       geom_line()
+  })
+  
+  output$PlotPage3 <- renderPlot({
+    req(input$XScatter, input$YScatter)
+    d <- filtered()
+    
+    ggplot(d, aes(x = .data[[input$XScatter]],
+                  y = .data[[input$YScatter]])) +
+      geom_point()
   })
 }
 
