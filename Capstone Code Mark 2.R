@@ -48,7 +48,6 @@ result          <- remove_outliers(dfcombined, iqr_mult = 2.5)
 dfcombined      <- result$clean
 dfOfMisfitsToys <- result$outliers
 dfcombined <- dfcombined[order(dfcombined$Date.Time), ]
-
 numeric_choices <- names(dfcombined)[sapply(dfcombined, is.numeric)]
 
 #print(table(as.Date(dfOfMisfitsToys$Date.Time)))  
@@ -84,8 +83,20 @@ ui <- fluidPage(
              selectInput(
                inputId = "column",
                label = "Select a column:",
-               choices = numeric_choices
+               choices = numeric_choices,
+               multiple = TRUE
              ),
+             sliderInput(
+               inputId = "Datevalue",
+               label   = "Choose a range of dates",
+               min     = min(dfcombined$Date.Time, na.rm = TRUE),
+               max     = max(dfcombined$Date.Time, na.rm = TRUE),
+               value   = c(min(dfcombined$Date.Time, na.rm = TRUE),
+                           max(dfcombined$Date.Time, na.rm = TRUE)),
+               timeFormat = "%Y-%m-%d",
+               timezone   = "+0000"
+             )
+             ,
              tableOutput("data"),
              verbatimTextOutput("summary"),
              plotOutput("plot")
@@ -109,9 +120,20 @@ server <- function(input, output, session) {
   })
   
   output$plot <- renderPlot({
-    # in the plot:
-    ggplot(dfcombined, aes(Date.Time, .data[[input$column]], group = seg)) + geom_line() +
-      labs(y = input$column)
+    req(input$column)
+    
+    long <- do.call(rbind, lapply(input$column, function(col) {
+      data.frame(
+        Date.Time = input$Datevalue,
+        seg       = dfcombined$seg,
+        variable  = col,
+        value     = dfcombined[[col]]
+      )
+    }))
+    
+    ggplot(long, aes(x = Date.Time, value, color = variable,
+                     group = interaction(variable, seg))) +
+      geom_line()
   })
 }
 
