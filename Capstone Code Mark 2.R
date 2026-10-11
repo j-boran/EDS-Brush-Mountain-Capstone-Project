@@ -48,8 +48,12 @@ result          <- remove_outliers(dfcombined, iqr_mult = 2.5)
 dfcombined      <- result$clean
 dfOfMisfitsToys <- result$outliers
 dfcombined <- dfcombined[order(dfcombined$Date.Time), ]
+colnames(dfcombined) <- c("Date.Time", "Temperature", "Turbidity", "Dissolved Oxygen", "% Oxygen Saturation", "Partial Pressure Oxygen", "Actual conductivty", 
+                          "Specific Conductivity", "Salinity", "Resistivity", "Density", "Total Dissolved Solids", "External Voltage", "seg")
 numeric_choices <- names(dfcombined)[sapply(dfcombined, is.numeric)]
 
+
+print(colnames(dfcombined))
 #print(table(as.Date(dfOfMisfitsToys$Date.Time)))  
 #print(head(dfcombined$Date.Time))
 #print(class(dfcombined$Date.Time))       
@@ -106,6 +110,12 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   
+  filtered <- reactive({
+    req(input$Datevalue)
+    dfcombined[dfcombined$Date.Time >= input$Datevalue[1] &
+                 dfcombined$Date.Time <= input$Datevalue[2], ]
+  })
+  
   output$Welcome_text <- renderText({
     "Jackson Boran EDS capstone Project Fall 2026"})
   output$Brush_Mountain <- renderImage({
@@ -121,17 +131,18 @@ server <- function(input, output, session) {
   
   output$plot <- renderPlot({
     req(input$column)
+    d <- filtered()
     
     long <- do.call(rbind, lapply(input$column, function(col) {
       data.frame(
-        Date.Time = input$Datevalue,
-        seg       = dfcombined$seg,
+        Date.Time = d$Date.Time,
+        seg       = d$seg,
         variable  = col,
-        value     = dfcombined[[col]]
+        value     = d[[col]]
       )
     }))
     
-    ggplot(long, aes(x = Date.Time, value, color = variable,
+    ggplot(long, aes(x = Date.Time, y = value, color = variable,
                      group = interaction(variable, seg))) +
       geom_line()
   })
