@@ -140,6 +140,18 @@ ui <- fluidPage(
 
 server <- function(input, output, session) {
   
+
+  
+  # When slider B changes, update slider A to match
+  observeEvent(input$Datevalue, {
+    updateSliderInput(session, "DatevalueB", value = input$Datevalue)
+  })
+
+  # When slider A changes, update slider B to match
+  observeEvent(input$DatevalueB, {
+    updateSliderInput(session, "Datevalue", value = input$DatevalueB)
+  })
+    
   filtered <- reactive({
     req(input$Datevalue)
     dfcombined[dfcombined$Date.Time >= input$Datevalue[1] &
