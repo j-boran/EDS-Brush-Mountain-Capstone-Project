@@ -101,6 +101,15 @@ ui <- fluidPage(
                timezone   = "+0000"
              )
              ,
+             dateRangeInput(
+               inputId = "DatevalueB",
+               label = "Choose a range of dates",
+               start = min(dfcombined$Date.Time, na.rm = TRUE),
+               end = max(dfcombined$Date.Time, na.rm = TRUE),
+               min     = min(dfcombined$Date.Time, na.rm = TRUE),
+               max     = max(dfcombined$Date.Time, na.rm = TRUE),
+               format = "%y-%m-%d"
+             ),
              tableOutput("data"),
              verbatimTextOutput("summary"),
              plotOutput("plot")
@@ -121,6 +130,11 @@ ui <- fluidPage(
                label = "Select a Y variable",
                choices = numeric_choices
              ),
+             selectInput(
+               inputId = "ZScatter",
+               label = "Select a Z variable",
+               choices = numeric_choices
+             ),
              plotOutput("PlotPage3"))
   ))
 
@@ -130,6 +144,13 @@ server <- function(input, output, session) {
     req(input$Datevalue)
     dfcombined[dfcombined$Date.Time >= input$Datevalue[1] &
                  dfcombined$Date.Time <= input$Datevalue[2], ]
+  })
+  
+  filtered <- reactive({
+    req(input$DatevalueB)
+    dates <- as.Date(dfcombined$Date.Time, tz = "UTC")
+    dfcombined[dates >= input$DatevalueB[1] &
+                 dates <= input$DatevalueB[2], ]
   })
   
   output$Welcome_text <- renderText({
@@ -148,6 +169,7 @@ server <- function(input, output, session) {
   output$plot <- renderPlot({
     req(input$column)
     d <- filtered()
+    req(nrow(d) > 0)
     
     long <- do.call(rbind, lapply(input$column, function(col) {
       data.frame(
@@ -168,7 +190,7 @@ server <- function(input, output, session) {
     d <- filtered()
     
     ggplot(d, aes(x = .data[[input$XScatter]],
-                  y = .data[[input$YScatter]])) +
+                  y = .data[[input$YScatter]], color = .data[[input$ZScatter]])) +
       geom_point()
   })
 }
