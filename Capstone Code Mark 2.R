@@ -64,9 +64,31 @@ print(colnames(dfcombined))
 ui <- fluidPage(
   h1("Capstone Project"),
   
+  conditionalPanel(
+    condition = "input.active_tab === 'Page 2' || input.active_tab === 'Page 3'",
+    sliderInput(
+      inputId = "Datevalue",
+      label = "Choose a range of dates",
+      min = min(dfcombined$Date.Time, na.rm = TRUE),
+      max = max(dfcombined$Date.Time, na.rm = TRUE),
+      value = range(dfcombined$Date.Time, na.rm = TRUE),
+      timeFormat = "%Y-%m-%d",
+      timezone = "+0000"
+    ),
+    dateRangeInput(
+      inputId = "DatevalueB",
+      label = "Choose a range of dates",
+      start = as.Date(min(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
+      end = as.Date(max(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
+      min = as.Date(min(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
+      max = as.Date(max(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
+      format = "yyyy-mm-dd"
+    )
+  ),
   
   
   tabsetPanel(
+    id = "active_tab",
     tabPanel("Welcome Page",
              h2("Jackson Boran EDS Capstone Project Fall 2026"),
              p("This project is a web application used to visualize watershed sensor data.
@@ -89,26 +111,6 @@ ui <- fluidPage(
                label = "Select a column:",
                choices = numeric_choices,
                multiple = TRUE
-             ),
-             sliderInput(
-               inputId = "Datevalue",
-               label   = "Choose a range of dates",
-               min     = min(dfcombined$Date.Time, na.rm = TRUE),
-               max     = max(dfcombined$Date.Time, na.rm = TRUE),
-               value   = c(min(dfcombined$Date.Time, na.rm = TRUE),
-                           max(dfcombined$Date.Time, na.rm = TRUE)),
-               timeFormat = "%Y-%m-%d",
-               timezone   = "+0000"
-             )
-             ,
-             dateRangeInput(
-               inputId = "DatevalueB",
-               label = "Choose a range of dates",
-               start = min(dfcombined$Date.Time, na.rm = TRUE),
-               end = max(dfcombined$Date.Time, na.rm = TRUE),
-               min     = min(dfcombined$Date.Time, na.rm = TRUE),
-               max     = max(dfcombined$Date.Time, na.rm = TRUE),
-               format = "%y-%m-%d"
              ),
              tableOutput("data"),
              verbatimTextOutput("summary"),
@@ -144,25 +146,30 @@ server <- function(input, output, session) {
   
   # When slider B changes, update slider A to match
   observeEvent(input$Datevalue, {
-    updateSliderInput(session, "DatevalueB", value = input$Datevalue)
+    req(input$DatevalueB)
+    selected <- as.Date(input$Datevalue, tz = "UTC")
+    if (!identical(selected, input$DatevalueB)) {
+      updateDateRangeInput(session, "DatevalueB",
+                           start = selected[1], end = selected[2])
+    }
   })
-
-  # When slider A changes, update slider B to match
+  
   observeEvent(input$DatevalueB, {
-    updateSliderInput(session, "Datevalue", value = input$DatevalueB)
-  })
-    
-  filtered <- reactive({
     req(input$Datevalue)
-    dfcombined[dfcombined$Date.Time >= input$Datevalue[1] &
-                 dfcombined$Date.Time <= input$Datevalue[2], ]
+    if (!identical(as.Date(input$Datevalue, tz = "UTC"), input$DatevalueB)) {
+      start <- as.POSIXct(input$DatevalueB[1], tz = "UTC")
+      end <- as.POSIXct(input$DatevalueB[2] + 1, tz = "UTC") - 1
+      end <- min(end, max(dfcombined$Date.Time, na.rm = TRUE))
+      updateSliderInput(session, "Datevalue", value = c(start, end))
+    }
   })
   
   filtered <- reactive({
     req(input$DatevalueB)
     dates <- as.Date(dfcombined$Date.Time, tz = "UTC")
-    dfcombined[dates >= input$DatevalueB[1] &
-                 dates <= input$DatevalueB[2], ]
+    dfcombined[!is.na(dates) &
+                 dates >= input$DatevalueB[1] &
+                 dates <= input$DatevalueB[2], , drop = FALSE]
   })
   
   output$Welcome_text <- renderText({
