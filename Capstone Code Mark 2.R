@@ -120,7 +120,7 @@ ui <- fluidPage(
              selectInput(
                inputId = "Dategrouping", 
                label = "Choose how you want the group to be categorized",
-               choices = list("hourly", "daily","weekly")
+               choices = c("hour", "day","week")
              ),
              selectInput(
                inputId = "XScatter",
@@ -154,15 +154,7 @@ server <- function(input, output, session) {
     }
   })
   
-  observeEvent(input$DatevalueB, {
-    req(input$Datevalue)
-    if (!identical(as.Date(input$Datevalue, tz = "UTC"), input$DatevalueB)) {
-      start <- as.POSIXct(input$DatevalueB[1], tz = "UTC")
-      end <- as.POSIXct(input$DatevalueB[2] + 1, tz = "UTC") - 1
-      end <- min(end, max(dfcombined$Date.Time, na.rm = TRUE))
-      updateSliderInput(session, "Datevalue", value = c(start, end))
-    }
-  })
+
   
   filtered <- reactive({
     req(input$DatevalueB)
@@ -170,6 +162,12 @@ server <- function(input, output, session) {
     dfcombined[!is.na(dates) &
                  dates >= input$DatevalueB[1] &
                  dates <= input$DatevalueB[2], , drop = FALSE]
+  })
+  
+  aggregated <- reactive({
+    d <- filtered()
+    d$Date.Time <- lubridate::floor_date(d$Date.Time, input$Dategrouping, week_start = 1)
+    aggregate(d[setdiff(numeric_choices, "seg")], list(Date.Time = d$Date.Time), mean, na.rm = TRUE)
   })
   
   output$Welcome_text <- renderText({
@@ -206,7 +204,7 @@ server <- function(input, output, session) {
   
   output$PlotPage3 <- renderPlot({
     req(input$XScatter, input$YScatter)
-    d <- filtered()
+    d <- aggregated()
     
     ggplot(d, aes(x = .data[[input$XScatter]],
                   y = .data[[input$YScatter]], color = .data[[input$ZScatter]])) +
