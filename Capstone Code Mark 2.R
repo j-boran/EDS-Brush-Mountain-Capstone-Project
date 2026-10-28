@@ -114,7 +114,8 @@ ui <- fluidPage(
              ),
              tableOutput("data"),
              verbatimTextOutput("summary"),
-             plotOutput("plot")
+             plotOutput("plot", brush = brushOpts(id="pBrush")),
+             tableOutput("selected_Data")
     ),
     tabPanel("Page 3",
              selectInput(
@@ -200,6 +201,16 @@ server <- function(input, output, session) {
     ggplot(long, aes(x = Date.Time, y = value, color = variable,
                      group = interaction(variable, seg))) +
       geom_line()
+  })
+  
+  output$selected_Data <- renderTable({
+    brushedPoints(
+      long,
+      input$pBrush,
+      xvar = "X",
+      yvar = "Y"
+    )
+    
   })
   
   output$PlotPage3 <- renderPlot({

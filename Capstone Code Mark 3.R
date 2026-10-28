@@ -1,0 +1,230 @@
+library(shiny)
+library(ggplot2)
+
+# Load data
+df1 <- read.csv("CapstoneData1part2.csv", skip = 8)
+df2 <- read.csv("CapstoneData2.csv", skip = 8)
+df3 <- read.csv("CapstoneData3.csv", skip = 8)
+df4 <- read.csv("CapstoneData4.csv", skip = 8)
+df5 <- read.csv("CapstoneData5.csv", skip = 8)
+
+remove_outliers <- function(df, iqr_mult = 2.5) {
+  numeric_cols <- names(df)[sapply(df, is.numeric)]
+  is_outlier <- rep(FALSE, nrow(df))
+  
+  for (col in numeric_cols) {
+    x <- df[[col]]
+    q <- quantile(x, c(0.25, 0.75), na.rm = TRUE)
+    spread <- iqr_mult * (q[2] - q[1])
+    
+    if (spread > 0) {
+      is_outlier <- is_outlier | ((x < q[1] - spread | x > q[2] + spread) %in% TRUE)
+    }
+  }
+  
+  list(
+    clean = df[!is_outlier, , drop = FALSE],
+    outliers = df[is_outlier, , drop = FALSE]
+  )
+}
+
+parse_dt <- function(x) {
+  x <- trimws(x)
+  out <- as.POSIXct(x, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
+  alt <- is.na(out)
+  out[alt] <- as.POSIXct(x[alt], format = "%m/%d/%y %H:%M:%S", tz = "UTC")
+  out
+}
+
+dfcombined <- unique(rbind(df1, df2, df3, df4, df5))
+dfcombined$Date.Time <- parse_dt(dfcombined$Date.Time)
+dfcombined$seg <- cumsum(c(0, diff(as.numeric(dfcombined$Date.Time)) > 3600))
+
+result <- remove_outliers(dfcombined, iqr_mult = 2.5)
+dfcombined <- result$clean
+dfOfMisfitsToys <- result$outliers
+dfcombined <- dfcombined[order(dfcombined$Date.Time), ]
+colnames(dfcombined) <- c(
+  "Date.Time", "Temperature", "Turbidity", "Dissolved Oxygen",
+  "% Oxygen Saturation", "Partial Pressure Oxygen", "Actual conductivty",
+  "Specific Conductivity", "Salinity", "Resistivity", "Density",
+  "Total Dissolved Solids", "External Voltage", "seg"
+)
+numeric_choices <- names(dfcombined)[sapply(dfcombined, is.numeric)]
+
+ui <- fluidPage(
+  h1("Capstone Project"),
+  
+  conditionalPanel(
+    condition = "input.active_tab === 'Page 2' || input.active_tab === 'Page 3'",
+    sliderInput(
+      inputId = "Datevalue",
+      label = "Choose a range of dates",
+      min = min(dfcombined$Date.Time, na.rm = TRUE),
+      max = max(dfcombined$Date.Time, na.rm = TRUE),
+      value = range(dfcombined$Date.Time, na.rm = TRUE),
+      timeFormat = "%Y-%m-%d",
+      timezone = "+0000"
+    ),
+    dateRangeInput(
+      inputId = "DatevalueB",
+      label = "Choose a range of dates",
+      start = as.Date(min(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
+      end = as.Date(max(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
+      min = as.Date(min(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
+      max = as.Date(max(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
+      format = "yyyy-mm-dd"
+    )
+  ),
+  
+  tabsetPanel(
+    id = "active_tab",
+    tabPanel(
+      "Welcome Page",
+      h2("Jackson Boran EDS Capstone Project Fall 2026"),
+      p("This project is a web application used to visualize watershed sensor data.
+         The data will be taken from Dr. JP Gannon's personal sensor, which saves and
+         sends data to a server. The details of the data will be explored later in
+         the methods section."),
+      p("This project aims to take data from the server, then transform it into an
+         interactive user interface that will allow visualizations and statistics of
+         the collected data. The focus of this project will be on the development of code
+         to accept and transform the raw data, and on interactive visualizations
+         that allow the user of the app to generate chosen visualizations based on
+         selected data."),
+      p("Brush Mountain is a hiking trail in Blacksburg Virginia. I sure wish I knew more about it,
+         so I could type it here and give more context to the reader."),
+      imageOutput("Brush_Mountain")
+    ),
+    tabPanel(
+      "Page 2",
+      selectInput(
+        inputId = "column",
+        label = "Select a column:",
+        choices = numeric_choices,
+        multiple = TRUE
+      ),
+      p("Drag over the plot to see statistics for the selected points."),
+      plotOutput("plot", brush = brushOpts(id = "pBrush", resetOnNew = TRUE)),
+      verbatimTextOutput("summary")
+    ),
+    tabPanel(
+      "Page 3",
+      selectInput(
+        inputId = "Dategrouping",
+        label = "Choose how you want the group to be categorized",
+        choices = c("hour", "day", "week")
+      ),
+      selectInput(
+        inputId = "XScatter",
+        label = "Select an X variable",
+        choices = numeric_choices
+      ),
+      selectInput(
+        inputId = "YScatter",
+        label = "Select a Y variable",
+        choices = numeric_choices
+      ),
+      selectInput(
+        inputId = "ZScatter",
+        label = "Select a Z variable",
+        choices = numeric_choices
+      ),
+      plotOutput("PlotPage3")
+    )
+  )
+)
+
+server <- function(input, output, session) {
+  observeEvent(input$Datevalue, {
+    req(input$DatevalueB)
+    selected <- as.Date(input$Datevalue, tz = "UTC")
+    if (!identical(selected, input$DatevalueB)) {
+      updateDateRangeInput(session, "DatevalueB",
+                           start = selected[1], end = selected[2])
+    }
+  })
+  
+  filtered <- reactive({
+    req(input$DatevalueB)
+    dates <- as.Date(dfcombined$Date.Time, tz = "UTC")
+    dfcombined[!is.na(dates) &
+                 dates >= input$DatevalueB[1] &
+                 dates <= input$DatevalueB[2], , drop = FALSE]
+  })
+  
+  aggregated <- reactive({
+    d <- filtered()
+    d$Date.Time <- lubridate::floor_date(d$Date.Time, input$Dategrouping,
+                                         week_start = 1)
+    aggregate(d[setdiff(numeric_choices, "seg")],
+              list(Date.Time = d$Date.Time), mean, na.rm = TRUE)
+  })
+  
+  output$Brush_Mountain <- renderImage({
+    list(src = "brushMountainPlaceholder.jpg",
+         contentType = "image/jpeg",
+         width = 400)
+  }, deleteFile = FALSE)
+  
+  # Build one dataset for plotting and brushing.
+  plot_data <- reactive({
+    req(input$column)
+    d <- filtered()
+    req(nrow(d) > 0)
+    
+    do.call(rbind, lapply(input$column, function(col) {
+      data.frame(
+        Date.Time = d$Date.Time,
+        seg = d$seg,
+        variable = col,
+        value = d[[col]],
+        stringsAsFactors = FALSE
+      )
+    }))
+  })
+  
+  output$plot <- renderPlot({
+    ggplot(plot_data(),
+           aes(x = Date.Time, y = value, color = variable,
+               group = interaction(variable, seg))) +
+      geom_line()
+  })
+  
+  output$summary <- renderPrint({
+    d <- plot_data()
+    if (!is.null(input$pBrush)) {
+      d <- brushedPoints(d, input$pBrush,
+                         xvar = "Date.Time", yvar = "value")
+      cat("Statistics for brushed points\n\n")
+    } else {
+      cat("Statistics for all points in the selected date range\n\n")
+    }
+    
+    if (nrow(d) == 0) {
+      cat("No points selected.")
+      return()
+    }
+    
+    for (col in input$column) {
+      values <- d$value[d$variable == col]
+      if (length(values) == 0) next
+      cat(col, "-", length(values), "points\n")
+      print(summary(values))
+      cat("Nonzero values:", sum(values != 0, na.rm = TRUE), "\n\n")
+    }
+  })
+  
+  output$PlotPage3 <- renderPlot({
+    req(input$XScatter, input$YScatter, input$ZScatter)
+    d <- aggregated()
+    
+    ggplot(d, aes(x = .data[[input$XScatter]],
+                  y = .data[[input$YScatter]],
+                  color = .data[[input$ZScatter]])) +
+      geom_point()
+  })
+}
+
+shinyApp(ui, server)
+
