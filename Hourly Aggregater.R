@@ -13,8 +13,8 @@ expected_names <- c(
 )
 sensor_cols <- expected_names[-1]
 
-# Fixed EST (UTC-5); unlike America/New_York, this does not switch to EDT.
-time_zone <- "Etc/GMT+5"
+# Keep all timestamps in UTC. No timezone conversion or relabeling is performed.
+time_zone <- "UTC"
 
 parse_dt <- function(x) {
   x <- trimws(as.character(x))
@@ -114,3 +114,4 @@ CapstoneDataframe <- dfcombined %>%
 export_data <- CapstoneDataframe
 export_data$Hour <- format(export_data$Hour, "%Y-%m-%d %H:%M:%S", tz = time_zone)
 write.csv(export_data, "CapstoneHourlyData.csv", row.names = FALSE)
+
