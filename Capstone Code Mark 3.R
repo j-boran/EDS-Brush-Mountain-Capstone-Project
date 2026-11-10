@@ -1,56 +1,6 @@
-library(shiny)
-library(ggplot2)
-
-# Load data
-df1 <- read.csv("CapstoneData1part2.csv", skip = 8)
-df2 <- read.csv("CapstoneData2.csv", skip = 8)
-df3 <- read.csv("CapstoneData3.csv", skip = 8)
-df4 <- read.csv("CapstoneData4.csv", skip = 8)
-df5 <- read.csv("CapstoneData5.csv", skip = 8)
-
-remove_outliers <- function(df, iqr_mult = 2.5) {
-  numeric_cols <- names(df)[sapply(df, is.numeric)]
-  is_outlier <- rep(FALSE, nrow(df))
-  
-  for (col in numeric_cols) {
-    x <- df[[col]]
-    q <- quantile(x, c(0.25, 0.75), na.rm = TRUE)
-    spread <- iqr_mult * (q[2] - q[1])
-    
-    if (spread > 0) {
-      is_outlier <- is_outlier | ((x < q[1] - spread | x > q[2] + spread) %in% TRUE)
-    }
-  }
-  
-  list(
-    clean = df[!is_outlier, , drop = FALSE],
-    outliers = df[is_outlier, , drop = FALSE]
-  )
-}
-
-parse_dt <- function(x) {
-  x <- trimws(x)
-  out <- as.POSIXct(x, format = "%Y-%m-%d %H:%M:%S", tz = "UTC")
-  alt <- is.na(out)
-  out[alt] <- as.POSIXct(x[alt], format = "%m/%d/%y %H:%M:%S", tz = "UTC")
-  out
-}
-
-dfcombined <- unique(rbind(df1, df2, df3, df4, df5))
-dfcombined$Date.Time <- parse_dt(dfcombined$Date.Time)
-dfcombined$seg <- cumsum(c(0, diff(as.numeric(dfcombined$Date.Time)) > 3600))
-
-result <- remove_outliers(dfcombined, iqr_mult = 2.5)
-dfcombined <- result$clean
-dfOfMisfitsToys <- result$outliers
-dfcombined <- dfcombined[order(dfcombined$Date.Time), ]
-colnames(dfcombined) <- c(
-  "Date.Time", "Temperature", "Turbidity", "Dissolved Oxygen",
-  "% Oxygen Saturation", "Partial Pressure Oxygen", "Actual conductivty",
-  "Specific Conductivity", "Salinity", "Resistivity", "Density",
-  "Total Dissolved Solids", "External Voltage", "seg"
-)
-numeric_choices <- names(dfcombined)[sapply(dfcombined, is.numeric)]
+dfcombined <- read.csv("CapstoneHourlyData.csv")
+numeric_choices <- expected_names[-1]
+print(head(dfcombined))
 
 ui <- fluidPage(
   h1("Capstone Project"),
@@ -60,19 +10,19 @@ ui <- fluidPage(
     sliderInput(
       inputId = "Datevalue",
       label = "Choose a range of dates",
-      min = min(dfcombined$Date.Time, na.rm = TRUE),
-      max = max(dfcombined$Date.Time, na.rm = TRUE),
-      value = range(dfcombined$Date.Time, na.rm = TRUE),
+      min = min(dfcombined$Hour, na.rm = TRUE),
+      max = max(dfcombined$Hour, na.rm = TRUE),
+      value = range(dfcombined$Hour, na.rm = TRUE),
       timeFormat = "%Y-%m-%d",
       timezone = "+0000"
     ),
     dateRangeInput(
       inputId = "DatevalueB",
       label = "Choose a range of dates",
-      start = as.Date(min(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
-      end = as.Date(max(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
-      min = as.Date(min(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
-      max = as.Date(max(dfcombined$Date.Time, na.rm = TRUE), tz = "UTC"),
+      start = as.Date(min(dfcombined$Hour, na.rm = TRUE), tz = "UTC"),
+      end = as.Date(max(dfcombined$Hour, na.rm = TRUE), tz = "UTC"),
+      min = as.Date(min(dfcombined$Hour, na.rm = TRUE), tz = "UTC"),
+      max = as.Date(max(dfcombined$Hour, na.rm = TRUE), tz = "UTC"),
       format = "yyyy-mm-dd"
     )
   ),
@@ -80,7 +30,7 @@ ui <- fluidPage(
   tabsetPanel(
     id = "active_tab",
     tabPanel(
-      "Welcome Page",
+      "Home Page",
       h2("Jackson Boran EDS Capstone Project Fall 2026"),
       p("This project is a web application used to visualize watershed sensor data.
          The data will be taken from Dr. JP Gannon's personal sensor, which saves and
@@ -97,19 +47,20 @@ ui <- fluidPage(
       imageOutput("Brush_Mountain")
     ),
     tabPanel(
-      "Page 2",
+      "Line Plot",
       selectInput(
         inputId = "column",
         label = "Select a column:",
         choices = numeric_choices,
-        multiple = TRUE
+        multiple = TRUE,
+        selected = "Temperature"
       ),
       p("Drag over the plot to see statistics for the selected points."),
       plotOutput("plot", brush = brushOpts(id = "pBrush", resetOnNew = TRUE)),
       verbatimTextOutput("summary")
     ),
     tabPanel(
-      "Page 3",
+      "Scatter Plot",
       selectInput(
         inputId = "Dategrouping",
         label = "Choose how you want the group to be categorized",
@@ -147,7 +98,7 @@ server <- function(input, output, session) {
   
   filtered <- reactive({
     req(input$DatevalueB)
-    dates <- as.Date(dfcombined$Date.Time, tz = "UTC")
+    dates <- as.Date(dfcombined$Hour, tz = "UTC")
     dfcombined[!is.na(dates) &
                  dates >= input$DatevalueB[1] &
                  dates <= input$DatevalueB[2], , drop = FALSE]
@@ -155,10 +106,10 @@ server <- function(input, output, session) {
   
   aggregated <- reactive({
     d <- filtered()
-    d$Date.Time <- lubridate::floor_date(d$Date.Time, input$Dategrouping,
+    d$Hour <- lubridate::floor_date(d$Hour, input$Dategrouping,
                                          week_start = 1)
     aggregate(d[setdiff(numeric_choices, "seg")],
-              list(Date.Time = d$Date.Time), mean, na.rm = TRUE)
+              list(Hour = d$Hour), mean, na.rm = TRUE)
   })
   
   output$Brush_Mountain <- renderImage({
@@ -175,7 +126,7 @@ server <- function(input, output, session) {
     
     do.call(rbind, lapply(input$column, function(col) {
       data.frame(
-        Date.Time = d$Date.Time,
+        Hour = d$Hour,
         seg = d$seg,
         variable = col,
         value = d[[col]],
@@ -186,7 +137,7 @@ server <- function(input, output, session) {
   
   output$plot <- renderPlot({
     ggplot(plot_data(),
-           aes(x = Date.Time, y = value, color = variable,
+           aes(x = Hour, y = value, color = variable,
                group = interaction(variable, seg))) +
       geom_line()
   })
@@ -195,7 +146,7 @@ server <- function(input, output, session) {
     d <- plot_data()
     if (!is.null(input$pBrush)) {
       d <- brushedPoints(d, input$pBrush,
-                         xvar = "Date.Time", yvar = "value")
+                         xvar = "Hour", yvar = "value")
       cat("Statistics for brushed points\n\n")
     } else {
       cat("Statistics for all points in the selected date range\n\n")
