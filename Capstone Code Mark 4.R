@@ -33,6 +33,7 @@ first_date <- as.Date(first_hour, tz = tz_sensor)
 last_date <- as.Date(last_hour, tz = tz_sensor)
 
 ui <- fluidPage(
+  tags$head(tags$style(HTML("\n    body, .form-control, .btn, .selectize-input, .selectize-dropdown {\n      font-size: calc(14px + 3pt);\n    }\n    h1 { font-size: calc(36px + 3pt); }\n    h2 { font-size: calc(30px + 3pt); }\n    pre { font-size: calc(13px + 3pt); }\n    .irs, .irs-grid, .irs-single, .irs-from, .irs-to {\n      font-size: calc(10px + 3pt);\n    }\n  "))),
   h1("Capstone Project"),
   conditionalPanel(
     condition = "input.active_tab === 'Line Plot' || input.active_tab === 'Scatter Plot'",
@@ -42,7 +43,7 @@ ui <- fluidPage(
       min = first_hour,
       max = last_hour,
       value = c(first_hour, last_hour),
-      timeFormat = "%Y-%m-%d",
+      timeFormat = "%Y-%m-%d %H:%M",
       timezone = "+0000"
     ),
     dateRangeInput(
@@ -81,8 +82,10 @@ ui <- fluidPage(
         choices = numeric_choices, multiple = TRUE,
         selected = "Temperature"
       ),
-      p("Drag over the plot to see statistics for the selected points."),
+      actionButton("fit_toggle", "Switch to logarithmic fit"),
+      p("Drag across a plot to zoom to that time range; Reset zoom restores all dates."),
       plotOutput("plot", brush = brushOpts(id = "pBrush", resetOnNew = TRUE)),
+      actionButton("reset_zoom", "Reset zoom"),
       downloadButton("download_line_plot", "Download line plot PNG"),
       verbatimTextOutput("summary")
     ),
@@ -102,6 +105,15 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
+  logarithmic_fit <- reactiveVal(FALSE)
+  observeEvent(input$fit_toggle, {
+    logarithmic_fit(!logarithmic_fit())
+    updateActionButton(
+      session, "fit_toggle",
+      label = if (logarithmic_fit()) "Switch to linear fit" else "Switch to logarithmic fit"
+    )
+  })
+  
   observeEvent(input$Datevalue, {
     selected <- as.Date(input$Datevalue, tz = tz_sensor)
     if (!identical(selected, input$DatevalueB)) {
@@ -109,11 +121,25 @@ server <- function(input, output, session) {
     }
   })
   
+  # A brush supplies numeric Unix timestamps for the x-axis. Update the
+  # existing date slider so the plot, fit, and PNG all use the zoomed interval.
+  observeEvent(input$pBrush, {
+    bounds <- sort(c(input$pBrush$xmin, input$pBrush$xmax))
+    zoom_hours <- as.POSIXct(bounds, origin = "1970-01-01", tz = tz_sensor)
+    if (diff(bounds) > 0 &&
+        any(dfcombined$Hour >= zoom_hours[1] & dfcombined$Hour <= zoom_hours[2])) {
+      updateSliderInput(session, "Datevalue", value = zoom_hours)
+    }
+  })
+  
+  observeEvent(input$reset_zoom, {
+    updateSliderInput(session, "Datevalue", value = c(first_hour, last_hour))
+  })
   filtered <- reactive({
-    req(input$DatevalueB)
-    dates <- as.Date(dfcombined$Hour, tz = tz_sensor)
+    req(input$Datevalue)
     dfcombined[
-      dates >= input$DatevalueB[1] & dates <= input$DatevalueB[2],
+      dfcombined$Hour >= input$Datevalue[1] &
+        dfcombined$Hour <= input$Datevalue[2],
       , drop = FALSE
     ]
   })
@@ -144,14 +170,40 @@ server <- function(input, output, session) {
   })
   
   line_plot <- reactive({
-    ggplot(plot_data(), aes(
-      x = Hour, y = value,
-      group = interaction(variable, seg)
-    )) +
+    d <- plot_data()
+    origin_hour <- min(d$Hour)
+    fits <- lapply(split(d, d$variable), function(sensor) {
+      sensor <- sensor[is.finite(sensor$value) & !is.na(sensor$Hour), , drop = FALSE]
+      sensor$elapsed <- as.numeric(difftime(sensor$Hour, origin_hour, units = "hours"))
+      if (nrow(sensor) < 2 || length(unique(sensor$elapsed)) < 2) return(NULL)
+      
+      model <- if (logarithmic_fit()) {
+        lm(value ~ log1p(elapsed), data = sensor)
+      } else {
+        lm(value ~ elapsed, data = sensor)
+      }
+      hours <- seq(min(sensor$elapsed), max(sensor$elapsed), length.out = 100)
+      data.frame(
+        Hour = origin_hour + hours * 3600,
+        variable = sensor$variable[1],
+        fit = predict(model, newdata = data.frame(elapsed = hours))
+      )
+    })
+    fit_data <- do.call(rbind, fits)
+    
+    p <- ggplot(d, aes(x = Hour, y = value,
+                       group = interaction(variable, seg))) +
       geom_line(color = "steelblue") +
       facet_wrap(~variable, scales = "free_y", ncol = 1) +
       labs(x = "Hour", y = "Value") +
       theme_minimal(base_size = 14)
+    if (!is.null(fit_data)) {
+      p <- p + geom_line(
+        data = fit_data, aes(x = Hour, y = fit, group = variable),
+        inherit.aes = FALSE, color = "firebrick", linewidth = 1
+      )
+    }
+    p
   })
   
   output$plot <- renderPlot({ line_plot() })
@@ -193,7 +245,7 @@ server <- function(input, output, session) {
       x = .data[[input$XScatter]],
       y = .data[[input$YScatter]],
       color = .data[[input$ZScatter]]
-    )) + geom_point() + theme_minimal(base_size = 14) + coord_fixed(ratio = 1) #see also +theme(aspect.ratio=1)
+    )) + geom_point() + theme_minimal(base_size = 14) + coord_fixed(ratio = 1)
   })
   
   output$PlotPage3 <- renderPlot({ scatter_plot() })
