@@ -2,12 +2,13 @@ library(shiny)
 library(ggplot2)
 library(dplyr)
 
-tz_sensor <- "Etc/GMT+5"  # Fixed EST (UTC-5), without daylight-saving jumps.
+tz_sensor <- "UTC"  # Hour timestamps in CapstoneHourlyData.csv are UTC.
 dfcombined <- read.csv("CapstoneHourlyData.csv")
-hour_text <- as.character(dfcombined$Hour)
-midnight <- nchar(hour_text) == 10L
-hour_text[midnight] <- paste0(hour_text[midnight], " 00:00:00")
-dfcombined$Hour <- as.POSIXct(hour_text, format = "%Y-%m-%d %H:%M:%S", tz = tz_sensor)
+dfcombined$Hour <- as.POSIXct(
+  as.character(dfcombined$Hour),
+  format = "%Y-%m-%d %H:%M:%S",
+  tz = tz_sensor
+)
 if (anyNA(dfcombined$Hour)) {
   stop("Some Hour values could not be parsed; check CapstoneHourlyData.csv.")
 }
@@ -42,7 +43,7 @@ ui <- fluidPage(
       max = last_hour,
       value = c(first_hour, last_hour),
       timeFormat = "%Y-%m-%d",
-      timezone = "-0500"
+      timezone = "+0000"
     ),
     dateRangeInput(
       inputId = "DatevalueB",
@@ -82,6 +83,7 @@ ui <- fluidPage(
       ),
       p("Drag over the plot to see statistics for the selected points."),
       plotOutput("plot", brush = brushOpts(id = "pBrush", resetOnNew = TRUE)),
+      downloadButton("download_line_plot", "Download line plot PNG"),
       verbatimTextOutput("summary")
     ),
     tabPanel(
@@ -93,7 +95,8 @@ ui <- fluidPage(
       selectInput("XScatter", "Select an X variable", choices = numeric_choices),
       selectInput("YScatter", "Select a Y variable", choices = numeric_choices),
       selectInput("ZScatter", "Select a Z variable", choices = numeric_choices),
-      plotOutput("PlotPage3")
+      plotOutput("PlotPage3"),
+      downloadButton("download_scatter_plot", "Download scatter plot PNG")
     )
   )
 )
@@ -140,12 +143,27 @@ server <- function(input, output, session) {
     }))
   })
   
-  output$plot <- renderPlot({
+  line_plot <- reactive({
     ggplot(plot_data(), aes(
-      x = Hour, y = value, color = variable,
+      x = Hour, y = value,
       group = interaction(variable, seg)
-    )) + geom_line()
+    )) +
+      geom_line(color = "steelblue") +
+      facet_wrap(~variable, scales = "free_y", ncol = 1) +
+      labs(x = "Hour", y = "Value") +
+      theme_minimal(base_size = 14)
   })
+  
+  output$plot <- renderPlot({ line_plot() })
+  
+  output$download_line_plot <- downloadHandler(
+    filename = function() "capstone_line_plot.png",
+    content = function(file) {
+      p <- line_plot()
+      ggsave(file, plot = p, device = "png", width = 10,
+             height = max(5, 3 * length(input$column)), units = "in", dpi = 300)
+    }
+  )
   
   output$summary <- renderPrint({
     d <- plot_data()
@@ -168,15 +186,25 @@ server <- function(input, output, session) {
     }
   })
   
-  output$PlotPage3 <- renderPlot({
+  scatter_plot <- reactive({
     req(input$XScatter, input$YScatter, input$ZScatter)
     d <- aggregated()
     ggplot(d, aes(
       x = .data[[input$XScatter]],
       y = .data[[input$YScatter]],
       color = .data[[input$ZScatter]]
-    )) + geom_point()
+    )) + geom_point() + theme_minimal(base_size = 14) + coord_fixed(ratio = 1) #see also +theme(aspect.ratio=1)
   })
+  
+  output$PlotPage3 <- renderPlot({ scatter_plot() })
+  
+  output$download_scatter_plot <- downloadHandler(
+    filename = function() "capstone_scatter_plot.png",
+    content = function(file) {
+      ggsave(file, plot = scatter_plot(), device = "png",
+             width = 10, height = 6, units = "in", dpi = 300)
+    }
+  )
 }
 
 shinyApp(ui, server)
