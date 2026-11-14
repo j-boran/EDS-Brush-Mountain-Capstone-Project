@@ -84,7 +84,7 @@ ui <- fluidPage(
       ),
       actionButton("fit_toggle", "Switch to logarithmic fit"),
       p("Drag across a plot to zoom to that time range; Reset zoom restores all dates."),
-      plotOutput("plot", brush = brushOpts(id = "pBrush", resetOnNew = TRUE)),
+      plotOutput("plot", brush = brushOpts(id = "pBrush", resetOnNew = TRUE), width = "100%", height = "800px"),
       actionButton("reset_zoom", "Reset zoom"),
       downloadButton("download_line_plot", "Download line plot PNG"),
       verbatimTextOutput("summary")
@@ -197,12 +197,6 @@ server <- function(input, output, session) {
       facet_wrap(~variable, scales = "free_y", ncol = 1) +
       labs(x = "Hour", y = "Value") +
       theme_minimal(base_size = 14)
-    if (!is.null(fit_data)) {
-      p <- p + geom_line(
-        data = fit_data, aes(x = Hour, y = fit, group = variable),
-        inherit.aes = FALSE, color = "firebrick", linewidth = 1
-      )
-    }
     p
   })
   
@@ -245,8 +239,15 @@ server <- function(input, output, session) {
       x = .data[[input$XScatter]],
       y = .data[[input$YScatter]],
       color = .data[[input$ZScatter]]
-    )) + geom_point() + theme_minimal(base_size = 14) + coord_fixed(ratio = 1)
+    )) + geom_point()  + geom_smooth() + theme_minimal(base_size = 14) + theme(aspect.ratio = 1)
   })
+  
+  #if (!is.null(fit_data)) {
+    #p <- p + geom_line(
+    #  data = fit_data, aes(x = Hour, y = fit, group = variable),
+    #  inherit.aes = FALSE, color = "firebrick", linewidth = 1
+   # )
+  #}
   
   output$PlotPage3 <- renderPlot({ scatter_plot() })
   
