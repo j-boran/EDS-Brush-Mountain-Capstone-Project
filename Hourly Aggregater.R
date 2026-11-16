@@ -6,10 +6,10 @@ files <- c(
 )
 
 expected_names <- c(
-  "Date.Time", "Temperature", "Turbidity", "Dissolved Oxygen",
-  "% Oxygen Saturation", "Partial Pressure Oxygen", "Actual conductivity",
-  "Specific Conductivity", "Salinity", "Resistivity", "Density",
-  "Total Dissolved Solids", "External Voltage"
+  "Date.Time", "Temperature (°C)", "Turbidity (NTU)", "Dissolved Oxygen (mg/L)",
+  "% Oxygen Saturation ", "Partial Pressure Oxygen (psi)", "Actual conductivity (μS/cm)",
+  "Specific Conductivity (μS/cm)", "Salinity (psu)", "Resistivity (Ω-cm)", "Density (g⁄cm³)",
+  "Total Dissolved Solids (mg/L)", "External Voltage (V)"
 )
 sensor_cols <- expected_names[-1]
 
