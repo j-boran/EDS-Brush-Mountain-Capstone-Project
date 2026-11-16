@@ -90,7 +90,10 @@ ui <- fluidPage(
                   c("hour", "day", "week")),
       selectInput("XScatter", "Select an X variable", numeric_choices, selected = default_x),
       selectInput("YScatter", "Select a Y variable", numeric_choices, selected = default_y),
-      selectInput("ZScatter", "Select a Z variable", numeric_choices, selected = default_x),
+      selectInput("ZScatter", "Color points by (Z)",
+                  choices = c("None" = "none", "Time" = "time",
+                              setNames(numeric_choices, numeric_choices)),
+                  selected = "none"),
       actionButton("fit_toggle", "Switch to logarithmic fit"),
       textOutput("fit_status"),
       plotOutput("PlotPage3"),
@@ -275,10 +278,22 @@ server <- function(input, output, session) {
   scatter_plot <- reactive({
     d <- scatter_data()
     validate(need(nrow(d) > 0, "No paired measurements for these variables and dates."))
-    p <- ggplot(d, aes(x = .data[[input$XScatter]], y = .data[[input$YScatter]],
-                       color = .data[[input$ZScatter]])) +
-      geom_point() + scale_color_viridis_c(na.value = "grey70") +
+    p <- ggplot(d, aes(x = .data[[input$XScatter]], y = .data[[input$YScatter]])) +
       theme_minimal(base_size = 14) + theme(aspect.ratio = 1)
+    if (input$ZScatter == "none") {
+      p <- p + geom_point(color = "steelblue")
+    } else if (input$ZScatter == "time") {
+      d$time_color <- as.numeric(d$Hour)
+      p <- p + geom_point(data = d, aes(color = time_color)) +
+        scale_color_viridis_c(
+          name = "Time (UTC)",
+          labels = function(x) format(as.POSIXct(x, origin = "1970-01-01", tz = tz_sensor),
+                                      "%Y-%m-%d", tz = tz_sensor)
+        )
+    } else {
+      p <- p + geom_point(aes(color = .data[[input$ZScatter]])) +
+        scale_color_viridis_c(na.value = "grey70", name = input$ZScatter)
+    }
     line <- fit_line()
     if (!is.null(line)) {
       p <- p + geom_line(data = line, aes(x = x, y = y),
