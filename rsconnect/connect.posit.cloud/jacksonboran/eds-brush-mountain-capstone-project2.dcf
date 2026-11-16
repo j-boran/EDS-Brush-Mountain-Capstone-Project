@@ -1,0 +1,12 @@
+name: eds-brush-mountain-capstone-project2
+title: EDS-Brush-Mountain-Capstone-Project
+username: jacksonboran
+account: jacksonboran
+server: connect.posit.cloud
+hostUrl: https://api.connect.posit.cloud/v1
+appId: 01a1d76f-431c-bb5c-266a-93bd63862e1d
+bundleId:
+url: https://connect.posit.cloud/jacksonboran/content/01a1d76f-431c-bb5c-266a-93bd63862e1d
+version: 1
+asMultiple: FALSE
+asStatic: FALSE
