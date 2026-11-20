@@ -2,6 +2,7 @@ library(shiny)
 library(ggplot2)
 library(dplyr)
 
+# Read the combined hourly CSV; its Hour column is recorded in UTC.
 tz_sensor <- "UTC"
 dfcombined <- read.csv("CapstoneHourlyData.csv")
 dfcombined$Hour <- as.POSIXct(
@@ -10,6 +11,7 @@ dfcombined$Hour <- as.POSIXct(
 if (anyNA(dfcombined$Hour)) stop("Some Hour values could not be parsed.")
 dfcombined <- arrange(dfcombined, Hour)
 
+# Select numeric sensor columns for the plot menus, excluding the row count.
 numeric_choices <- setdiff(
   names(dfcombined)[vapply(dfcombined, is.numeric, logical(1))],
   "Observations"
@@ -26,11 +28,16 @@ default_y <- if (length(other_choices)) {
   other_choices[which.max(paired)]
 } else default_x
 
+# Leave a sensor period missing when it has no readings; otherwise average available values.
 safe_mean <- function(x) if (all(is.na(x))) NA_real_ else mean(x, na.rm = TRUE)
+# Both date controls begin at the full extent of the input CSV.
 first_hour <- min(dfcombined$Hour)
 last_hour <- max(dfcombined$Hour)
 first_date <- as.Date(first_hour, tz = tz_sensor)
 last_date <- as.Date(last_hour, tz = tz_sensor)
+
+# Use one ggplot text size on both graph pages and in exported PNGs.
+plot_theme <- theme_minimal(base_size = 17)
 
 ui <- fluidPage(
   tags$head(tags$style(HTML("\n    body, .form-control, .btn, .selectize-input, .selectize-dropdown {
@@ -59,18 +66,15 @@ ui <- fluidPage(
     tabPanel(
       "Home Page",
       h2("Jackson Boran EDS Capstone Project Fall 2026"),
-      p("This project is a web application used to visualize watershed sensor data.
-         The data will be taken from Dr. JP Gannon's personal sensor, which saves and
-         sends data to a server. The details of the data will be explored later in
-         the methods section."),
-      p("This project aims to take data from the server, then transform it into an
+      p("This project is a web application used to visualize watershed sensor data from the water stream on the Brush Mountain Hiking trail in Blacksburg Virginia.
+         This app was made in collaboration with Professor JP Gannon at the university of Virginia Tech.  It was created for educational and personal use.
+        "),
+      p("The Brush Moutnain Capstone Project takes data downloaded from the stored hydrovu server, then transforms it into an
          interactive user interface that will allow visualizations and statistics of
-         the collected data. The focus of this project will be on the development of code
-         to accept and transform the raw data, and on interactive visualizations
-         that allow the user of the app to generate chosen visualizations based on
-         selected data."),
-      p("Brush Mountain is a hiking trail in Blacksburg Virginia. I sure wish I knew more about it,
-         so I could type it here and give more context to the reader."),
+         the collected data. The dataframe used in this app has been generated through the code Hourly Aggregator Mark 2.r.  
+        The application allows the user to generate line graphs or scatterplots using data inputs of their choice."),
+      p("Brush Mountain is a hiking trail in Blacksburg Virginia located at approximately 37°19′14″N 80°18′40″W
+      It serves as a protected area of wilderness, acting as a biking and recreational trail for use."),
       imageOutput("Brush_Mountain")
     ),
     tabPanel(
@@ -104,6 +108,7 @@ ui <- fluidPage(
 )
 
 server <- function(input, output, session) {
+  # This toggle changes the scatter fit only; the line plot shows raw measurements.
   logarithmic_fit <- reactiveVal(FALSE)
   observeEvent(input$fit_toggle, {
     logarithmic_fit(!logarithmic_fit())
@@ -111,6 +116,7 @@ server <- function(input, output, session) {
                          if (logarithmic_fit()) "Switch to linear fit" else "Switch to logarithmic fit")
   })
   
+  # Keep the timestamp slider and date-entry control in sync.
   observeEvent(input$Datevalue, {
     selected <- as.Date(input$Datevalue, tz = tz_sensor)
     if (!identical(selected, input$DatevalueB)) {
@@ -126,6 +132,7 @@ server <- function(input, output, session) {
                         value = c(max(first_hour, start), min(last_hour, end)))
     }
   })
+  # Brush zoom changes the shared date range; double-click or the button clears it.
   observeEvent(input$pBrush, {
     bounds <- sort(c(input$pBrush$xmin, input$pBrush$xmax))
     zoom_hours <- as.POSIXct(bounds, origin = "1970-01-01", tz = tz_sensor)
@@ -150,6 +157,7 @@ server <- function(input, output, session) {
         dfcombined$Hour <= input$Datevalue[2], , drop = FALSE
     ]
   })
+  # Average available hourly readings into the selected scatter-plot schedule.
   aggregated <- reactive({
     d <- filtered()
     req(nrow(d) > 0, input$Dategrouping)
@@ -161,6 +169,7 @@ server <- function(input, output, session) {
     list(src = "brushMountainPlaceholder.jpg", contentType = "image/jpeg", width = 400)
   }, deleteFile = FALSE)
   
+  # Stack selected sensor columns for faceted time-series plotting and statistics.
   plot_data <- reactive({
     req(input$column)
     d <- filtered()
@@ -185,7 +194,7 @@ server <- function(input, output, session) {
       geom_line(color = "steelblue", linewidth = 0.4) +
       geom_point(color = "steelblue", size = 0.4, alpha = 0.5) +
       facet_wrap(~variable, scales = "free_y", ncol = 1) +
-      labs(x = "Hour", y = "Value") + theme_minimal(base_size = 14)
+      labs(x = "Hour", y = "Value") + plot_theme
   })
   output$plot <- renderPlot(line_plot())
   output$download_line_plot <- downloadHandler(
@@ -225,6 +234,7 @@ server <- function(input, output, session) {
     d <- scatter_data()
     x <- d[[input$XScatter]]
     y <- d[[input$YScatter]]
+    # log(x) is defined only for positive X; the other scatter points stay visible.
     usable <- if (logarithmic_fit()) x > 0 else rep(TRUE, length(x))
     x <- x[usable]
     y <- y[usable]
@@ -237,6 +247,7 @@ server <- function(input, output, session) {
     }
     list(model = model, x = x, n = length(x))
   })
+  # Predict the same X/Y model used for the equation and R-squared below the plot.
   fit_line <- reactive({
     fit <- fit_model()
     if (is.null(fit)) return(NULL)
@@ -279,7 +290,7 @@ server <- function(input, output, session) {
     d <- scatter_data()
     validate(need(nrow(d) > 0, "No paired measurements for these variables and dates."))
     p <- ggplot(d, aes(x = .data[[input$XScatter]], y = .data[[input$YScatter]])) +
-      theme_minimal(base_size = 14) + theme(aspect.ratio = 1)
+      plot_theme + theme(aspect.ratio = 1)
     if (input$ZScatter == "none") {
       p <- p + geom_point(color = "steelblue")
     } else if (input$ZScatter == "time") {
