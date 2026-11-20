@@ -77,8 +77,13 @@ dfcombined$Hour <- as.POSIXct(
 # when multiple locations measure the same sensor, average their readings.
 CapstoneDataframe <- dfcombined %>%
   group_by(Hour) %>%
-  summarise(across(all_of(sensor_cols),
-                   ~ if (all(is.na(.x))) NA_real_ else mean(.x, na.rm = TRUE)),
+  summarise(across(all_of(sensor_cols), ~ {
+    if (all(is.na(.x))) {
+      NA_real_
+    } else {
+      mean(.x, na.rm = TRUE)
+    }
+  }),
             Observations = n(), .groups = "drop") %>%
   arrange(Hour)
 

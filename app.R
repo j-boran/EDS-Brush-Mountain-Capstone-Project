@@ -4,7 +4,11 @@ library(dplyr)
 
 # Read the combined hourly CSV; its Hour column is recorded in UTC.
 tz_sensor <- "UTC"
-dfcombined <- read.csv("CapstoneHourlyData.csv")
+dfcombined <- read.csv(
+  "CapstoneHourlyData.csv",
+  check.names = FALSE,
+  fileEncoding = "UTF-8"
+)
 dfcombined$Hour <- as.POSIXct(
   as.character(dfcombined$Hour), format = "%Y-%m-%d %H:%M:%S", tz = tz_sensor
 )
@@ -17,9 +21,9 @@ numeric_choices <- setdiff(
   "Observations"
 )
 if (!length(numeric_choices)) stop("No numeric sensor columns found.")
-default_column <- if ("Depth..m." %in% numeric_choices) "Depth..m." else numeric_choices[1]
-# Start the scatter plot with two different sensors that have paired readings.
-default_x <- numeric_choices[1]
+temperature_choices <- grep("temperature", numeric_choices, ignore.case = TRUE, value = TRUE)
+default_column <- if (length(temperature_choices)) temperature_choices[1] else numeric_choices[1]
+default_x <- numeric_choices[4]
 other_choices <- setdiff(numeric_choices, default_x)
 default_y <- if (length(other_choices)) {
   paired <- vapply(other_choices, function(col) {
@@ -323,3 +327,5 @@ server <- function(input, output, session) {
 }
 
 shinyApp(ui, server)
+
+
